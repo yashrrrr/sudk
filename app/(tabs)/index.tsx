@@ -12,7 +12,7 @@ const { width } = Dimensions.get('window');
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { user, logout, isGuest, isLoading, loginAsGuest } = useAuth();
+  const { user, logout, isGuest, isLoading, loginAsGuest, signInWithGoogle } = useAuth();
 
   // Prevent flickering while checking storage
   if (isLoading) {
@@ -112,15 +112,14 @@ export default function LoginScreen() {
             <Text style={styles.googleButtonText}>Play Now</Text>
           </TouchableOpacity>
 
-          {/* Google Sign-in - Coming Soon */}
+          {/* Google Sign-in */}
           <TouchableOpacity
-            style={[styles.guestButton, { opacity: 0.5 }]}
-            disabled={true}
+            style={styles.googleSignInButton}
+            onPress={signInWithGoogle}
+            activeOpacity={0.8}
           >
-            <Ionicons name="logo-google" size={18} color="#666" style={{ marginRight: 8 }} />
-            <Text style={[styles.guestButtonText, { textDecorationLine: 'none' }]}>
-              Google Sign-In (Coming Soon)
-            </Text>
+            <Ionicons name="logo-google" size={20} color="#fff" style={{ marginRight: 10 }} />
+            <Text style={styles.googleSignInText}>Continue with Google</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -306,5 +305,23 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#a0a0a0',
     textDecorationLine: 'underline',
+  },
+  googleSignInButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 30,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    width: '100%',
+  },
+  googleSignInText: {
+    fontSize: 16,
+    color: '#fff',
+    fontWeight: '500',
   },
 });

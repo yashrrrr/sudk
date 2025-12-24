@@ -1,12 +1,18 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Google from 'expo-auth-session/providers/google';
-import * as WebBrowser from 'expo-web-browser';
+import {
+    GoogleSignin,
+    isSuccessResponse,
+    statusCodes,
+} from '@react-native-google-signin/google-signin';
 import { GoogleAuthProvider, onAuthStateChanged, signInWithCredential, signOut, User } from 'firebase/auth';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { auth } from '../constants/firebaseConfig';
 
-// Required for expo-auth-session to work on Android
-WebBrowser.maybeCompleteAuthSession();
+// Configure Google Sign-In
+GoogleSignin.configure({
+    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    offlineAccess: true,
+});
 
 interface AuthContextType {
     user: User | null;
@@ -32,42 +38,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const [user, setUser] = useState<User | null>(null);
     const [isGuest, setIsGuest] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
-
-    // Google Auth Request - let the provider handle redirect URI automatically
-    // For Expo Go, this uses the auth proxy: https://auth.expo.io/@zypher007/sudoku-classic
-    const [request, response, promptAsync] = Google.useAuthRequest({
-        webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-        androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
-    });
-
-    // Debug: Log the redirect URI
-    useEffect(() => {
-        if (request) {
-            console.log('=== GOOGLE AUTH DEBUG ===');
-            console.log('Redirect URI:', request.redirectUri);
-            console.log('Web Client ID:', process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID);
-            console.log('=========================');
-        }
-    }, [request]);
-
-    // Handle Google Auth Response
-    useEffect(() => {
-        if (response?.type === 'success') {
-            const { authentication } = response;
-            if (authentication?.idToken) {
-                const credential = GoogleAuthProvider.credential(authentication.idToken);
-                signInWithCredential(auth, credential).catch(error => {
-                    console.error('Error signing in with Google:', error);
-                });
-            } else if (authentication?.accessToken) {
-                // Fallback: use access token if no id token
-                const credential = GoogleAuthProvider.credential(null, authentication.accessToken);
-                signInWithCredential(auth, credential).catch(error => {
-                    console.error('Error signing in with Google:', error);
-                });
-            }
-        }
-    }, [response]);
 
     // Handle Auth State Changes & Persistence
     useEffect(() => {
@@ -100,9 +70,34 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     const signInWithGoogle = async () => {
         try {
-            await promptAsync();
-        } catch (error) {
-            console.error('Google Sign-in error:', error);
+            // Check if device supports Google Play Services
+            await GoogleSignin.hasPlayServices();
+
+            // Sign in with Google
+            const response = await GoogleSignin.signIn();
+
+            if (isSuccessResponse(response)) {
+                const { idToken } = response.data;
+
+                if (idToken) {
+                    // Create Firebase credential with the Google ID token
+                    const credential = GoogleAuthProvider.credential(idToken);
+
+                    // Sign in to Firebase with the credential
+                    await signInWithCredential(auth, credential);
+                    console.log('Successfully signed in with Google!');
+                }
+            }
+        } catch (error: any) {
+            if (error.code === statusCodes.SIGN_IN_CANCELLED) {
+                console.log('User cancelled the sign-in');
+            } else if (error.code === statusCodes.IN_PROGRESS) {
+                console.log('Sign-in is already in progress');
+            } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+                console.error('Play Services not available');
+            } else {
+                console.error('Google Sign-in error:', error);
+            }
         }
     };
 
@@ -118,6 +113,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const logout = async () => {
         try {
             if (user) {
+                // Sign out from Google
+                try {
+                    await GoogleSignin.signOut();
+                } catch (e) {
+                    // Ignore if not signed in with Google
+                }
+                // Sign out from Firebase
                 await signOut(auth);
             }
             setIsGuest(false);
@@ -133,4 +135,3 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         </AuthContext.Provider>
     );
 };
-
